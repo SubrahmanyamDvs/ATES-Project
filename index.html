@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ambulance Traffic Signal System</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #eef2f3;
+    margin: 0; padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100vh;
+    box-sizing: border-box;
+  }
+  h1#projectTitle {
+    margin: 0 0 20px 0;
+    font-size: 28px;
+    color: #222;
+    text-align: center;
+  }
+  #container {
+    display: flex;
+    background: #fff;
+    border: 4px solid #444;
+    border-radius: 10px;
+    overflow: hidden;
+    max-width: 900px;
+    width: 200%;
+    height: 420px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.15);
+  }
+  #map {
+    position: relative;
+    width: 800px;
+    height: 100%;
+    background: #ddd;
+  }
+  /* Roads */
+  .road-vertical {
+    position: absolute;
+    top: 0; bottom: 0;
+    left: 50%;
+    width: 100px;
+    margin-left: -50px;
+    background: #555;
+    z-index: 1;
+  }
+  .road-horizontal {
+    position: absolute;
+    left: 0; right: 0;
+    top: 50%;
+    height: 100px;
+    margin-top: -50px;
+    background: #555;
+    z-index: 1;
+  }
+
+  /* Signals */
+  .signal {
+    position: absolute;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: 2px solid #222;
+    background: #444;
+    box-shadow: inset 0 0 8px #000;
+    z-index: 10;
+  }
+  #signalN { top: calc(50% - 130px); left: 50%; margin-left: -20px; }
+  #signalS { top: calc(50% + 90px); left: 50%; margin-left: -20px; }
+  #signalE { top: 50%; left: calc(50% + 90px); margin-top: -20px; }
+  #signalW { top: 50%; left: calc(50% - 130px); margin-top: -20px; }
+
+  .red { background: #c00; box-shadow: 0 0 15px #f00; }
+  .green { background: #0c0; box-shadow: 0 0 15px #0f0; }
+  .yellow { background: #cc0; box-shadow: 0 0 15px #ff0; }
+
+  /* Ambulance labels */
+  .ambulance {
+    position: absolute;
+    color: #fff;
+    font-weight: bold;
+    z-index: 20;
+    padding: 2px 6px;
+    border-radius: 5px;
+    background: rgba(255,0,0,0.8);
+    font-size: 12px;
+    box-shadow: 0 0 3px #900;
+    white-space: nowrap;
+  }
+  #ambN { top: 10px; left: 50%; margin-left: -40px; width: 80px; text-align: center; }
+  #ambS { bottom: 10px; left: 50%; margin-left: -40px; width: 80px; text-align: center; }
+  #ambE { top: 50%; right: 10px; margin-top: -10px; width: 80px; text-align: left; }
+  #ambW { top: 50%; left: 10px; margin-top: -10px; width: 80px; text-align: right; }
+
+  /* Direction labels */
+  .dir-label {
+    position: absolute;
+    font-weight: bold;
+    font-size: 16px;
+    color: #222;
+    z-index: 15;
+    user-select: none;
+  }
+  #dirN { top: calc(50% - 170px); left: 50%; margin-left: -15px; }
+  #dirS { top: calc(50% + 130px); left: 50%; margin-left: -15px; }
+  #dirE { top: 50%; left: calc(50% + 130px); margin-top: -10px; }
+  #dirW { top: 50%; left: calc(50% - 170px); margin-top: -10px; }
+
+  /* Right panel */
+  #explanationPanel {
+    padding: 30px 25px;
+    width: 480px;
+    overflow-y: auto;
+    color: #333;
+  }
+  #explanationPanel h2 {
+    margin-top: 0;
+    font-size: 22px;
+    color: #222;
+  }
+  #explanationPanel ul {
+    margin-top: 12px;
+    font-size: 16px;
+    line-height: 1.4;
+    padding-left: 20px;
+  }
+  #explanationPanel ul li {
+    margin-bottom: 8px;
+  }
+
+  /* Scrollbar for explanation panel if needed */
+  #explanationPanel::-webkit-scrollbar {
+    width: 8px;
+  }
+  #explanationPanel::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+  }
+  #explanationPanel::-webkit-scrollbar-track {
+    background: #eee;
+  }
+</style>
+</head>
+<body>
+
+<h1 id="projectTitle">Ambulance Traffic Signal Automation System</h1>
+
+<div id="container">
+  <div id="map">
+    <div class="road-vertical"></div>
+    <div class="road-horizontal"></div>
+
+    <!-- Signal circles -->
+    <div id="signalN" class="signal red"></div>
+    <div id="signalS" class="signal red"></div>
+    <div id="signalE" class="signal red"></div>
+    <div id="signalW" class="signal red"></div>
+
+    <!-- Ambulance labels -->
+    <div id="ambN" class="ambulance" style="display:none;"></div>
+    <div id="ambS" class="ambulance" style="display:none;"></div>
+    <div id="ambE" class="ambulance" style="display:none;"></div>
+    <div id="ambW" class="ambulance" style="display:none;"></div>
+
+    <!-- Direction labels -->
+    <div id="dirN" class="dir-label">North</div>
+    <div id="dirS" class="dir-label">South</div>
+    <div id="dirE" class="dir-label">East</div>
+    <div id="dirW" class="dir-label">West</div>
+  </div>
+
+  <div id="explanationPanel">
+    <!-- Case title and explanation go here -->
+  </div>
+</div>
+
+<script>
+  const cases = [
+    {
+      name: "Case 1: Single Ambulance from North",
+      signals: {N:"green", S:"red", E:"red", W:"red"},
+      ambs: {N:{distance:150, direction:"→ East"}, S:null, E:null, W:null},
+      explanationPoints: [
+        "An ambulance is coming from North, 150 meters away, heading East.",
+        "North signal turns green while others remain red.",
+        "This allows safe passage for the ambulance."
+      ],
+      duration: 7000
+    },
+    {
+      name: "Case 2: Single Ambulance from East",
+      signals: {N:"red", S:"red", E:"green", W:"red"},
+      ambs: {N:null, S:null, E:{distance:150, direction:"→ South"}, W:null},
+      explanationPoints: [
+        "An ambulance is approaching from East, 150 meters away, heading South.",
+        "East signal is green; others are red.",
+        "Ensures safe crossing for ambulance from East."
+      ],
+      duration: 7000
+    },
+    {
+      name: "Case 3: Two Ambulances from North and East",
+      signals: {N:"green", S:"red", E:"red", W:"red"}, // Start with N green
+      ambs: {
+        N:{distance:145, direction:"→ East"},
+        E:{distance:200, direction:"→ South"},
+        S:null,
+        W:null
+      },
+      explanationPoints: [], // handled dynamically
+      duration: 10000
+    },
+    {
+      name: "Case 4: Four Ambulances from all directions",
+      signals: {N:"red", S:"red", E:"red", W:"red"},
+      ambs: {
+        N:{distance:140, direction:"→ East"},
+        S:{distance:150, direction:"→ West"},
+        E:{distance:130, direction:"→ South"},
+        W:{distance:130, direction:"→ North"}
+      },
+      explanationPoints: [], // handled dynamically
+      duration: 15000
+    }
+  ];
+
+  const signalElements = {
+    N: document.getElementById("signalN"),
+    S: document.getElementById("signalS"),
+    E: document.getElementById("signalE"),
+    W: document.getElementById("signalW")
+  };
+
+  const ambElements = {
+    N: document.getElementById("ambN"),
+    S: document.getElementById("ambS"),
+    E: document.getElementById("ambE"),
+    W: document.getElementById("ambW")
+  };
+
+  const explanationEl = document.getElementById("explanationPanel");
+
+  let currentCaseIndex = 0;
+  let case3SubStep = 0;
+  let case4SubStep = 0;
+  let timerId = null;
+
+  function updateSignals(signalStates) {
+    for (let dir in signalElements) {
+      signalElements[dir].classList.remove("red","green","yellow");
+      signalElements[dir].classList.add(signalStates[dir] || "red");
+    }
+  }
+
+  function updateAmbulances(ambData) {
+    for (let dir in ambElements) {
+      if (ambData[dir]) {
+        ambElements[dir].style.display = "block";
+        ambElements[dir].textContent = `Ambulance: ${ambData[dir].distance}m ${ambData[dir].direction}`;
+      } else {
+        ambElements[dir].style.display = "none";
+        ambElements[dir].textContent = "";
+      }
+    }
+  }
+
+  function updateExplanation(name, points) {
+    let html = `<h2>${name}</h2><ul>`;
+    points.forEach(pt => {
+      html += `<li>${pt}</li>`;
+    });
+    html += `</ul>`;
+    explanationEl.innerHTML = html;
+  }
+
+  function runCase3Sequence() {
+    const ambN = cases[2].ambs.N;
+    const ambE = cases[2].ambs.E;
+
+    if (case3SubStep === 0) {
+      updateSignals({N:"green", S:"red", E:"red", W:"red"});
+      updateAmbulances({N:ambN, E:null, S:null, W:null});
+      updateExplanation(
+        "Case 3: Two Ambulances from North and East",
+        [
+          "Two ambulances are approaching: from North (145m) and East (200m).",
+          "The nearer ambulance from North gets green signal first.",
+          "After it crosses, East ambulance gets green for safe passage.",
+          "Signals switch automatically in sequence."
+        ]
+      );
+      case3SubStep = 1;
+      timerId = setTimeout(runCase3Sequence, 5000);
+    } else {
+      updateSignals({N:"red", S:"red", E:"green", W:"red"});
+      updateAmbulances({N:null, E:ambE, S:null, W:null});
+      updateExplanation(
+        "Case 3: Two Ambulances from North and East",
+        [
+          "Two ambulances are approaching: from North (145m) and East (200m).",
+          "The nearer ambulance from North got green signal first.",
+          "Now East ambulance gets green signal for safe passage.",
+          "Signals switch automatically in sequence."
+        ]
+      );
+      case3SubStep = 0;
+      // After finishing case 3, go to case 4
+      timerId = setTimeout(() => {
+        currentCaseIndex = 3;
+        case4SubStep = 0;
+        runCase4Sequence();
+      }, 5000);
+    }
+  }
+
+  function runCase4Sequence() {
+    const order = ["E", "W", "N", "S"];
+    const ambs = cases[3].ambs;
+    const names = {
+      N: "North ambulance heading East",
+      S: "South ambulance heading West",
+      E: "East ambulance heading South",
+      W: "West ambulance heading North"
+    };
+
+    const dir = order[case4SubStep];
+
+    let signals = {N:"red", S:"red", E:"red", W:"red"};
+    signals[dir] = "green";
+
+    let ambsToShow = {};
+    ambsToShow[dir] = ambs[dir];
+
+    updateSignals(signals);
+    updateAmbulances(ambsToShow);
+
+    let points = [
+      "All four ambulances approach from different directions.",
+      "Priority is given based on safest directions to avoid accidents.",
+      `Current green signal given to ${names[dir]} (distance: ${ambs[dir].distance}m).`,
+      "Other signals remain red to ensure safety.",
+      "After this ambulance crosses, next ambulance gets green signal."
+    ];
+
+    updateExplanation("Case 4: Four Ambulances from all directions", points);
+
+    case4SubStep++;
+
+    if (case4SubStep >= order.length) {
+      case4SubStep = 0;
+      timerId = setTimeout(() => {
+        currentCaseIndex = 0;
+        updateCase(currentCaseIndex);
+      }, 3000); // small delay before restarting case 1
+    } else {
+      timerId = setTimeout(runCase4Sequence, 3750); // 15 sec / 4 = ~3.75 sec each
+    }
+  }
+
+  function updateCase(index) {
+    currentCaseIndex = index;
+    clearTimeout(timerId);
+
+    if (index === 2) {
+      case3SubStep = 0;
+      runCase3Sequence();
+    } else if (index === 3) {
+      case4SubStep = 0;
+      runCase4Sequence();
+    } else {
+      updateSignals(cases[index].signals);
+      updateAmbulances(cases[index].ambs);
+      updateExplanation(cases[index].name, cases[index].explanationPoints);
+
+      timerId = setTimeout(() => {
+        currentCaseIndex = (currentCaseIndex + 1) % cases.length;
+        updateCase(currentCaseIndex);
+      }, cases[index].duration);
+    }
+  }
+
+  // Start cycling
+  updateCase(0);
+</script>
+
+</body>
+</html>
